@@ -1,0 +1,546 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>big2cater — 把相册做成黑洞的人</title>
+<meta name="description" content="big2cater 的个人主页：本地优先 AI 相册 PicAiPic 的作者。照片属于你，AI 也属于你。">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='32' r='16' fill='%23000'/%3E%3Ccircle cx='32' cy='32' r='26' fill='none' stroke='%236aa8ff' stroke-width='2' opacity='0.8'/%3E%3C/svg%3E">
+<style>
+:root {
+  --ink: #e8edff;
+  --dim: rgba(232, 237, 255, 0.6);
+  --faint: rgba(232, 237, 255, 0.35);
+  --blue: #6aa8ff;
+  --amber: #f5b76a;
+  --panel: rgba(13, 15, 32, 0.62);
+  --line: rgba(255, 255, 255, 0.09);
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body {
+  font-family: "PingFang SC", "Microsoft YaHei", "Segoe UI", system-ui, sans-serif;
+  background: #05060f;
+  color: var(--ink);
+  line-height: 1.7;
+  overflow-x: hidden;
+}
+::selection { background: rgba(106, 168, 255, 0.35); }
+
+/* ---------- 黑洞背景 ---------- */
+#bh {
+  position: fixed; inset: 0;
+  width: 100vw; height: 100vh;
+  z-index: 0;
+}
+#bh-fade {
+  position: fixed; inset: 0; z-index: 1;
+  background: linear-gradient(180deg,
+    rgba(5, 6, 15, 0) 0%,
+    rgba(5, 6, 15, 0.55) 55%,
+    rgba(5, 6, 15, 0.92) 100%);
+  pointer-events: none;
+}
+
+main { position: relative; z-index: 2; }
+
+/* ---------- 通用容器 ---------- */
+.wrap { max-width: 1060px; margin: 0 auto; padding: 0 22px; }
+
+section { padding: 96px 0; }
+
+.sec-title {
+  font-size: clamp(1.3rem, 3vw, 1.8rem);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  margin-bottom: 8px;
+}
+.sec-title em {
+  font-style: normal;
+  background: linear-gradient(90deg, var(--blue), var(--amber));
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+}
+.sec-lead { color: var(--dim); margin-bottom: 42px; font-size: 0.95rem; }
+
+/* ---------- Hero ---------- */
+.hero {
+  min-height: 100vh;
+  display: flex; align-items: center;
+  padding: 120px 0 80px;
+}
+.hero-body { max-width: 760px; }
+
+.hero-eye {
+  display: flex; align-items: center; gap: 10px;
+  font-size: 0.74rem; letter-spacing: 0.4em;
+  color: rgba(190, 220, 255, 0.75);
+  margin-bottom: 22px;
+  text-transform: uppercase;
+}
+.hero-eye .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--amber); box-shadow: 0 0 12px var(--amber); animation: blink 2.2s infinite; }
+
+.hero h1 {
+  font-size: clamp(2.1rem, 5.4vw, 3.9rem);
+  font-weight: 800; letter-spacing: -0.03em;
+  line-height: 1.14; margin-bottom: 22px;
+  min-height: 2.4em;
+  text-shadow: 0 8px 40px rgba(0, 0, 0, 0.6);
+}
+.cursor { color: var(--blue); animation: blink 0.9s step-end infinite; }
+.hero-sub {
+  color: var(--dim); font-size: 1.05rem;
+  max-width: 40rem; margin-bottom: 36px;
+}
+.hero-cta { display: flex; flex-wrap: wrap; gap: 14px; margin-bottom: 46px; }
+.btn {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 12px 24px; border-radius: 999px;
+  font-size: 0.95rem; font-weight: 600;
+  text-decoration: none; color: var(--ink);
+  border: 1px solid var(--line);
+  background: rgba(255,255,255,0.05);
+  backdrop-filter: blur(8px);
+  transition: transform .2s ease, box-shadow .25s ease, border-color .25s ease, background .25s ease;
+}
+.btn:hover { transform: translateY(-3px); border-color: rgba(140,190,255,0.5); }
+.btn-brand {
+  background: linear-gradient(135deg, #6aa8ff, #3b6ef0);
+  border: none; color: #fff;
+  box-shadow: 0 16px 44px rgba(59,110,240,0.45);
+}
+.btn-brand:hover { box-shadow: 0 22px 56px rgba(59,110,240,0.6); }
+
+.terminal-line {
+  font-family: "JetBrains Mono", Consolas, monospace;
+  font-size: 0.85rem; color: var(--dim);
+  background: rgba(8,10,24,0.6);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 14px 18px;
+  max-width: 30rem;
+  backdrop-filter: blur(6px);
+}
+.terminal-line .prompt { color: var(--amber); }
+.terminal-line .cmd { color: var(--blue); margin: 0 10px 0 6px; }
+.terminal-line .out { color: var(--dim); }
+
+/* ---------- 数据区 ---------- */
+.stats-inline {
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px;
+  border: 1px solid var(--line);
+  border-radius: 22px;
+  background: var(--panel);
+  backdrop-filter: blur(10px);
+  padding: 30px 26px;
+}
+.stat { text-align: center; }
+.stat-num {
+  font-size: clamp(1.7rem, 4vw, 2.5rem);
+  font-weight: 800;
+  background: linear-gradient(135deg, var(--blue), var(--amber));
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+}
+.stat-label { color: var(--faint); font-size: 0.82rem; margin-top: 4px; }
+
+/* ---------- 技能 ---------- */
+.tags { display: flex; flex-wrap: wrap; gap: 10px; }
+.tag {
+  position: relative;
+  padding: 8px 18px; border-radius: 999px;
+  font-size: 0.86rem; font-weight: 600;
+  color: var(--ink);
+  background: rgba(255,255,255,0.045);
+  border: 1px solid var(--line);
+  overflow: hidden;
+  transition: transform .2s ease;
+}
+.tag::before {
+  content: ""; position: absolute; inset: 0;
+  background: linear-gradient(120deg, transparent 30%, rgba(106,168,255,0.35) 50%, transparent 70%);
+  background-size: 250% 100%; background-position: 120% 0;
+  transition: background-position .6s ease;
+}
+.tag:hover { transform: translateY(-4px); }
+.tag:hover::before { background-position: -30% 0; }
+
+/* ---------- 项目 ---------- */
+.proj-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 18px; perspective: 1200px; }
+.proj {
+  position: relative;
+  border-radius: 22px;
+  padding: 26px 24px;
+  border: 1px solid var(--line);
+  background: linear-gradient(180deg, rgba(255,255,255,0.055), rgba(255,255,255,0.018)), var(--panel);
+  backdrop-filter: blur(10px);
+  overflow: hidden;
+  transform-style: preserve-3d;
+  transition: transform .25s ease, border-color .25s ease;
+  text-decoration: none; color: var(--ink);
+}
+.proj:hover { border-color: rgba(120,180,255,0.4); }
+.proj::after {
+  content: ""; position: absolute; inset: 0; pointer-events: none;
+  background: radial-gradient(240px circle at var(--mx, 50%) var(--my, 0%), rgba(106,168,255,0.14), transparent 60%);
+  opacity: 0; transition: opacity .3s ease;
+}
+.proj:hover::after { opacity: 1; }
+.proj-top { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
+.proj-icon { font-size: 1.7rem; filter: drop-shadow(0 0 12px rgba(106,168,255,0.5)); }
+.proj h3 { font-size: 1.12rem; font-weight: 800; }
+.proj p { color: var(--dim); font-size: 0.9rem; margin-bottom: 18px; min-height: 3.2em; }
+.proj-tags { display: flex; flex-wrap: wrap; gap: 7px; }
+.proj-tags span {
+  font-size: 0.72rem; padding: 3px 10px; border-radius: 999px;
+  border: 1px solid var(--line); color: var(--faint);
+  background: rgba(255,255,255,0.03);
+}
+.proj-go { position: absolute; right: 22px; top: 24px; color: var(--faint); font-size: 1rem; transition: transform .2s ease, color .2s ease; }
+.proj:hover .proj-go { transform: translate(3px, -3px); color: var(--amber); }
+
+/* ---------- 联系 ---------- */
+.contact-card {
+  border-radius: 26px; padding: 48px 34px; text-align: center;
+  border: 1px solid var(--line);
+  background:
+    radial-gradient(circle at 50% 0%, rgba(106,168,255,0.14), transparent 55%),
+    var(--panel);
+  backdrop-filter: blur(10px);
+}
+.contact-card h3 { font-size: clamp(1.4rem, 3vw, 2rem); font-weight: 800; margin-bottom: 10px; }
+.contact-card p { color: var(--dim); margin-bottom: 26px; }
+.contact-links { display: flex; justify-content: center; flex-wrap: wrap; gap: 12px; }
+
+footer {
+  position: relative; z-index: 2;
+  text-align: center;
+  color: var(--faint);
+  font-size: 0.8rem;
+  padding: 44px 0 36px;
+  border-top: 1px solid rgba(255,255,255,0.06);
+}
+footer .heart { color: var(--amber); }
+
+/* ---------- 动画工具 ---------- */
+@keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.15; } }
+
+.reveal { opacity: 0; transform: translateY(26px); transition: opacity .7s ease, transform .7s ease; }
+.reveal.on { opacity: 1; transform: none; }
+
+@media (max-width: 860px) {
+  .proj-grid { grid-template-columns: 1fr; }
+  .stats-inline { grid-template-columns: 1fr; gap: 22px; }
+  section { padding: 64px 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .reveal { opacity: 1; transform: none; transition: none; }
+  * { animation-duration: 0.001s !important; }
+}
+</style>
+</head>
+<body>
+<canvas id="bh" aria-hidden="true"></canvas>
+<div id="bh-fade"></div>
+<main>
+  <!-- Hero -->
+  <section class="hero">
+    <div class="wrap hero-body">
+      <div class="hero-eye"><span class="dot"></span>BIG2CATER · 本地优先 · 把相册做成黑洞</div>
+      <h1><span id="typed"></span><span class="cursor">▍</span></h1>
+      <p class="hero-sub">
+        我做了一个本地优先的 AI 相册 <strong>PicAiPic</strong>：浏览、搜索、整理都在你自己的磁盘上完成，
+        不要求云账号、不上传一张照片 —— 连黑洞主题都是认真的，照片真的会被吸进去。
+      </p>
+      <div class="hero-cta">
+        <a class="btn btn-brand" href="https://github.com/big2cater/picaipic">✳ 查看 PicAiPic</a>
+        <a class="btn" href="https://github.com/big2cater">GitHub</a>
+        <a class="btn" href="https://github.com/big2cater/picaipic/releases/latest">下载 ↗</a>
+      </div>
+      <div class="terminal-line"><span class="prompt">$</span><span class="cmd">whoami</span><span class="out">big2cater — 把相册做成黑洞的人</span></div>
+    </div>
+  </section>
+
+  <!-- 数据 -->
+  <section>
+    <div class="wrap reveal">
+      <div class="stats-inline">
+        <div class="stat"><div class="stat-num" data-count="110000" data-suffix="+">0</div><div class="stat-label">张图的图库实机验证</div></div>
+        <div class="stat"><div class="stat-num" data-count="4">0</div><div class="stat-label">个平台安装包（Win/Linux × x64/ARM64）</div></div>
+        <div class="stat"><div class="stat-num" data-count="260">0</div><div class="stat-label">颗星星在你的鼠标周围旋转</div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 技能 -->
+  <section>
+    <div class="wrap reveal">
+      <h2 class="sec-title">我折腾的东西<em>（和黑洞无关的很少）</em></h2>
+      <p class="sec-lead">从相册到模型，从像素到 LUT —— 喜欢把技术做成能用、好玩、好看的东西。</p>
+      <div class="tags">
+        <span class="tag">Rust</span><span class="tag">Tauri 2</span><span class="tag">Vue 3</span>
+        <span class="tag">SQLite</span><span class="tag">ONNX Runtime</span><span class="tag">CLIP</span>
+        <span class="tag">FFmpeg</span><span class="tag">LibRaw</span><span class="tag">ComfyUI</span>
+        <span class="tag">人脸聚类</span><span class="tag">语义搜索</span><span class="tag">GPL-3.0</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- 项目 -->
+  <section>
+    <div class="wrap reveal">
+      <h2 class="sec-title">精选作品<em>，都还活着</em></h2>
+      <p class="sec-lead">公开仓库都在维护，随时可以点击查看。</p>
+      <div class="proj-grid">
+        <a class="proj" href="https://github.com/big2cater/picaipic" target="_blank" rel="noopener">
+          <span class="proj-go">↗</span>
+          <div class="proj-top"><span class="proj-icon">🕳️</span><h3>PicAiPic</h3></div>
+          <p>本地优先的 AI 相册：文件夹即图库、语义搜索、人脸聚类、ComfyUI 集成，还有会吸走照片的黑洞主题。</p>
+          <div class="proj-tags"><span>Rust / Tauri</span><span>Vue 3</span><span>ONNX</span><span>GPL-3.0</span></div>
+        </a>
+        <a class="proj" href="https://github.com/big2cater/picaipic-binaries" target="_blank" rel="noopener">
+          <span class="proj-go">↗</span>
+          <div class="proj-top"><span class="proj-icon">📦</span><h3>picaipic-binaries</h3></div>
+          <p>PicAiPic 的模型与运行时镜像站：CLIP 双语模型、人脸 ONNX、FFmpeg 侧车，自托管下载源。</p>
+          <div class="proj-tags"><span>Models</span><span>Releases</span><span>Self-host</span></div>
+        </a>
+        <a class="proj" href="https://github.com/big2cater/ComfyUI" target="_blank" rel="noopener">
+          <span class="proj-go">↗</span>
+          <div class="proj-top"><span class="proj-icon">⚙️</span><h3>ComfyUI</h3></div>
+          <p>AI 图像生成工作流引擎的镜像与维护：PicAiPic 的 ComfyUI 集成直接对接它。</p>
+          <div class="proj-tags"><span>Python</span><span>AI</span><span>Workflow</span></div>
+        </a>
+        <a class="proj" href="https://github.com/big2cater/SA-LUT" target="_blank" rel="noopener">
+          <span class="proj-go">↗</span>
+          <div class="proj-top"><span class="proj-icon">🎨</span><h3>SA-LUT</h3></div>
+          <p>风格 LUT 工具链：追色、照片风格、.cube 色彩库，离线完成。</p>
+          <div class="proj-tags"><span>LUT</span><span>Color</span><span>Style</span></div>
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <!-- 联系 -->
+  <section>
+    <div class="wrap reveal">
+      <div class="contact-card">
+        <h3>想聊聊？黑洞的引力波传得很快</h3>
+        <p>Issues 是最好的留言板 —— 报告问题、提想法，或者只是打个招呼。</p>
+        <div class="contact-links">
+          <a class="btn btn-brand" href="https://github.com/big2cater/picaipic/issues">在 PicAiPic 留言</a>
+          <a class="btn" href="https://github.com/big2cater">GitHub Profile</a>
+        </div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer>© 2026 big2cater · 主页本身就是一台迷你黑洞 <span class="heart">✦</span> · 由 PicAiPic 的黑洞主题提供引力</footer>
+
+<script>
+(function () {
+  'use strict';
+
+  /* ================= 黑洞 Canvas ================= */
+  const canvas = document.getElementById('bh')
+  const ctx = canvas.getContext('2d')
+  const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  const dpr = Math.min(window.devicePixelRatio || 1, 1.5)
+
+  const stars = []
+  const COUNT = reduceMotion ? 110 : 300
+  const mouse = { x: 0.5, y: 0.5, active: false }
+  let w = 0, h = 0
+
+  function resize() {
+    w = window.innerWidth
+    h = window.innerHeight
+    canvas.width = Math.round(w * dpr)
+    canvas.height = Math.round(h * dpr)
+    canvas.style.width = w + 'px'
+    canvas.style.height = h + 'px'
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
+  }
+
+  function spawnStar() {
+    const near = Math.random() < 0.74
+    const r = near
+      ? Math.abs((Math.random() + Math.random() + Math.random()) / 3 - 0.42) * 0.64
+      : 0.55 + Math.random() * 0.45
+    return {
+      baseR: r,
+      baseA: Math.random() * Math.PI * 2,
+      speed: near ? 0.12 + Math.random() * 0.95 : 0.02 + Math.random() * 0.07,
+      drift: 0.04 + Math.random() * 0.2,
+      twinkle: Math.random() * Math.PI * 2,
+      twinkleSpeed: 0.5 + Math.random() * 2,
+      size: near ? 0.6 + Math.random() * 2 : 0.4 + Math.random() * 1.1,
+      hue: Math.random() < 0.82 ? 200 : (Math.random() < 0.5 ? 45 : 320),
+    }
+  }
+  for (let i = 0; i < COUNT; i += 1) stars.push(spawnStar())
+
+  const cxT = { x: 0.5, y: 0.45 }
+  function draw(t) {
+    cxT.x += ((mouse.active ? mouse.x : 0.5) - cxT.x) * 0.035
+    cxT.y += ((mouse.active ? mouse.y : 0.45) - cxT.y) * 0.035
+    const cx = cxT.x * w
+    const cy = cxT.y * h
+
+    const bg = ctx.createRadialGradient(cx, cy, 0, cx, cy, Math.max(w, h) * 0.8)
+    bg.addColorStop(0, 'rgba(9,11,26,1)')
+    bg.addColorStop(0.55, 'rgba(7,9,22,1)')
+    bg.addColorStop(1, 'rgba(4,5,13,1)')
+    ctx.fillStyle = bg
+    ctx.fillRect(0, 0, w, h)
+
+    for (const s of stars) {
+      s.baseA += s.speed * 0.0016
+      s.twinkle += s.twinkleSpeed * 0.016
+      const pull = mouse.active ? 0.9 : 1
+      const r = s.baseR * Math.min(w, h) * 0.58 * pull
+      const x = cx + Math.cos(s.baseA) * r + Math.sin(s.baseA + s.drift) * 2
+      const y = cy + Math.sin(s.baseA) * r * 0.72 + Math.cos(s.baseA + s.drift) * 2
+      const alpha = 0.22 + 0.55 * (0.5 + 0.5 * Math.sin(s.twinkle))
+      const size = s.size * (0.8 + 0.4 * Math.sin(s.twinkle * 1.3))
+      ctx.beginPath()
+      ctx.fillStyle = `hsla(${s.hue}, 85%, ${72 + 18 * Math.sin(s.twinkle)}%, ${alpha})`
+      ctx.arc(x, y, size, 0, Math.PI * 2)
+      ctx.fill()
+
+      if (s.speed > 0.7 && Math.random() < 0.08) {
+        ctx.beginPath()
+        ctx.strokeStyle = `hsla(${s.hue}, 90%, 78%, 0.15)`
+        ctx.lineWidth = 1
+        ctx.arc(cx, cy, r, s.baseA - 0.22, s.baseA)
+        ctx.stroke()
+      }
+    }
+
+    const pulse = reduceMotion ? 0 : Math.sin(t / 1000 * 1.1) * 0.03
+    const er = Math.min(w, h) * (0.09 + pulse)
+
+    const glow = ctx.createRadialGradient(cx, cy, er * 0.2, cx, cy, er * 3.2)
+    glow.addColorStop(0, 'rgba(190, 220, 255, 0.5)')
+    glow.addColorStop(0.25, 'rgba(90, 140, 255, 0.22)')
+    glow.addColorStop(0.6, 'rgba(60, 90, 200, 0.08)')
+    glow.addColorStop(1, 'rgba(0, 0, 0, 0)')
+    ctx.fillStyle = glow
+    ctx.beginPath()
+    ctx.arc(cx, cy, er * 3.2, 0, Math.PI * 2)
+    ctx.fill()
+
+    ctx.beginPath()
+    ctx.arc(cx, cy, er * 1.28, 0, Math.PI * 2)
+    ctx.strokeStyle = `rgba(255, 214, 150, ${0.35 + 0.2 * Math.sin(t / 1000 * 2.2)})`
+    ctx.lineWidth = 2.4
+    ctx.stroke()
+    ctx.beginPath()
+    ctx.arc(cx, cy, er * 1.28, 0, Math.PI * 2)
+    ctx.strokeStyle = 'rgba(200, 235, 255, 0.16)'
+    ctx.lineWidth = 9
+    ctx.stroke()
+
+    ctx.beginPath()
+    ctx.arc(cx, cy, er, 0, Math.PI * 2)
+    ctx.fillStyle = '#000'
+    ctx.fill()
+  }
+
+  function tick(ts) { draw(ts); requestAnimationFrame(tick) }
+
+  function onPointer(e) {
+    mouse.x = e.clientX / w
+    mouse.y = e.clientY / h
+    mouse.active = true
+  }
+  function onLeave() { mouse.active = false }
+
+  resize()
+  window.addEventListener('resize', resize)
+  window.addEventListener('pointermove', onPointer, { passive: true })
+  document.addEventListener('pointerleave', onLeave)
+  if (reduceMotion) draw(performance.now())
+  else requestAnimationFrame(tick)
+
+  /* ================= 打字机 ================= */
+  const lines = [
+    'Hi，我是 big2cater。',
+    '我在做本地优先的 AI 相册。',
+    '连黑洞主题都是认真的 —— 照片真的会被吸进去。',
+    '照片属于你，AI 也属于你。',
+  ]
+  const typedEl = document.getElementById('typed')
+  let li = 0, ci = 0, deleting = false
+
+  function typeStep() {
+    const line = lines[li]
+    if (!deleting) {
+      ci += 1
+      typedEl.textContent = line.slice(0, ci)
+      if (ci === line.length) {
+        deleting = true
+        setTimeout(typeStep, 2300)
+        return
+      }
+      setTimeout(typeStep, 55)
+    } else {
+      ci -= 2
+      if (ci <= 0) { ci = 0; deleting = false; li = (li + 1) % lines.length }
+      typedEl.textContent = line.slice(0, Math.max(0, ci))
+      setTimeout(typeStep, 18)
+    }
+  }
+  setTimeout(typeStep, 600)
+
+  /* ================= 滚动显现 ================= */
+  const io = new IntersectionObserver((entries) => {
+    for (const en of entries) {
+      if (en.isIntersecting) {
+        en.target.classList.add('on')
+        io.unobserve(en.target)
+      }
+    }
+  }, { threshold: 0.15 })
+  document.querySelectorAll('.reveal').forEach((el) => io.observe(el))
+
+  /* ================= 数字滚动 ================= */
+  const numIO = new IntersectionObserver((entries) => {
+    for (const en of entries) {
+      if (!en.isIntersecting) continue
+      const el = en.target
+      numIO.unobserve(el)
+      const target = Number(el.dataset.count || 0)
+      const suffix = el.dataset.suffix || ''
+      const t0 = performance.now()
+      const dur = 1600
+      function step(now) {
+        const p = Math.min(1, (now - t0) / dur)
+        const eased = 1 - Math.pow(1 - p, 3)
+        el.textContent = Math.round(target * eased).toLocaleString() + suffix
+        if (p < 1) requestAnimationFrame(step)
+      }
+      requestAnimationFrame(step)
+    }
+  }, { threshold: 0.4 })
+  document.querySelectorAll('.stat-num').forEach((el) => numIO.observe(el))
+
+  /* ================= 卡片光斑 + 3D 倾斜 ================= */
+  document.querySelectorAll('.proj').forEach((card) => {
+    card.addEventListener('pointermove', (e) => {
+      const r = card.getBoundingClientRect()
+      const mx = e.clientX - r.left
+      const my = e.clientY - r.top
+      card.style.setProperty('--mx', mx + 'px')
+      card.style.setProperty('--my', my + 'px')
+      if (reduceMotion) return
+      const rx = ((my / r.height) - 0.5) * -7
+      const ry = ((mx / r.width) - 0.5) * 7
+      card.style.transform = `rotateX(${rx.toFixed(2)}deg) rotateY(${ry.toFixed(2)}deg) translateY(-4px)`
+    })
+    card.addEventListener('pointerleave', () => {
+      card.style.transform = ''
+    })
+  })
+})();
+</script>
+</body>
+</html>
